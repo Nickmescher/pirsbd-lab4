@@ -7,7 +7,8 @@ public interface NbaAnalyzer {
 
     /**
      * Считает для каждого игрока за каждый сезон:
-     *   efficiency = PTS + TRB + AST
+     *   efficiency = годовые PTS + TRB + AST только из строк TOT
+     *   salary = сумма зарплат за сезон / число различных Tm в stats, исключая TOT
      *   cost_per_efficiency = salary / efficiency
      *
      * Принимает исходные salaries (player_id, season_end, salary, team), stats и players.
