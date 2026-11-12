@@ -96,13 +96,27 @@ docker compose up --abort-on-container-exit
 
 Результаты появляются в папке `output/` на хосте.
 
-### Параметры запуска (spark-submit)
+### CLI — аргументы spark-submit
 
 ```
-NbaApp <playersPath> <salariesPath> <statsPath> <outputDir> [topN]
+NbaApp <playersPath> <salariesPath> <statsPath> <outputDir> [topN] [year]
 ```
 
-По умолчанию `topN = 5`.
+| Аргумент | Обязательный | По умолчанию | Описание |
+|----------|-------------|-------------|----------|
+| `playersPath` | да | — | Путь к `players.csv` |
+| `salariesPath` | да | — | Путь к `salaries_1985to2018.csv` |
+| `statsPath` | да | — | Путь к `Seasons_Stats.csv` |
+| `outputDir` | да | — | Директория для результатов |
+| `topN` | нет | `5` | Сколько игроков выводить в топе |
+| `year` | нет | все годы | Фильтр по конкретному году (например `1995`) |
+
+Чтобы запустить за конкретный год, добавь `"1995"` шестым аргументом в `docker-compose.yml` после `"5"`:
+
+```yaml
+"5",
+"1995"
+```
 
 ## Технологии
 

@@ -13,7 +13,7 @@ public class NbaApp {
     public static void main(String[] args) {
         if (args.length < 4) {
             System.err.println(
-                    "Usage: NbaApp <playersPath> <salariesPath> <statsPath> <outputDir> [topN]");
+                    "Usage: NbaApp <playersPath> <salariesPath> <statsPath> <outputDir> [topN] [year]");
             System.exit(1);
         }
 
@@ -22,6 +22,7 @@ public class NbaApp {
         String statsPath = args[2];
         String outputDir = args[3];
         int topN = args.length >= 5 ? Integer.parseInt(args[4]) : DEFAULT_TOP_N;
+        Integer filterYear = args.length >= 6 ? Integer.parseInt(args[5]) : null;
 
         SparkSession spark = SparkSession.builder()
                 .appName("NbaApp")
@@ -47,6 +48,9 @@ public class NbaApp {
 
         // Читаем из паркета и выводим топ-N по каждому году
         Dataset<Row> fromParquet = spark.read().parquet(parquetPath);
+        if (filterYear != null) {
+            fromParquet = fromParquet.filter(org.apache.spark.sql.functions.col("year").equalTo(filterYear));
+        }
         Dataset<Row> top = analyzer.topCheapestByYear(fromParquet, topN);
 
         top.coalesce(1)
