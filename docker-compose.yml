@@ -37,9 +37,9 @@ services:
       "--master", "spark://spark-master:7077",
       "--class", "org.example.NbaApp",
       "/opt/spark/apps/pirsbd-lab4.jar",
-      "/opt/spark/data/players.csv",
-      "/opt/spark/data/salaries_1985to2018.csv",
-      "/opt/spark/data/Seasons_Stats.csv",
+      "/opt/spark/data/cleaned/players.csv",
+      "/opt/spark/data/cleaned/salaries_1985to2018.csv",
+      "/opt/spark/data/cleaned/Seasons_Stats.csv",
       "/opt/spark/output",
       "5"
     ]
