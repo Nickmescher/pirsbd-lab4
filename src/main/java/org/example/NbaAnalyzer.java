@@ -10,9 +10,11 @@ public interface NbaAnalyzer {
      *   efficiency = PTS + TRB + AST
      *   cost_per_efficiency = salary / efficiency
      *
-     * Принимает salaries уже обогащённый колонками player_name и year.
+     * Принимает исходные salaries (player_id, season_end, salary, team), stats и players.
+     * Сопоставляет статистику с players по имени и ближайшей дате рождения
+     * к 1 мая (Year - Age), затем соединяет с зарплатами по player_id и году окончания сезона.
      */
-    Dataset<Row> costPerEfficiency(Dataset<Row> salaries, Dataset<Row> stats);
+    Dataset<Row> costPerEfficiency(Dataset<Row> salaries, Dataset<Row> stats, Dataset<Row> players);
 
     /**
      * Из датасета cost_per_efficiency возвращает топ-N игроков

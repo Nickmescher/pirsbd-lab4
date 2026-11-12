@@ -6,8 +6,6 @@ import org.apache.spark.sql.SparkSession;
 import org.example.impl.CsvNbaDataLoader;
 import org.example.impl.NbaAnalyzerImpl;
 
-import static org.apache.spark.sql.functions.*;
-
 public class NbaApp {
 
     private static final int DEFAULT_TOP_N = 5;
@@ -37,18 +35,8 @@ public class NbaApp {
         Dataset<Row> salaries = loader.loadSalaries(spark, salariesPath);
         Dataset<Row> stats = loader.loadSeasonStats(spark, statsPath);
 
-        // Обогащаем зарплаты именем игрока через таблицу players (_id -> player_id)
-        Dataset<Row> salariesWithName = salaries
-                .join(players, salaries.col("player_id").equalTo(players.col("_id")), "left")
-                .select(
-                        players.col("name").as("player_name"),
-                        salaries.col("salary"),
-                        salaries.col("season_start").cast("int").as("year"),
-                        salaries.col("team")
-                );
-
         // Считаем efficiency и cost_per_efficiency
-        Dataset<Row> cpe = analyzer.costPerEfficiency(salariesWithName, stats);
+        Dataset<Row> cpe = analyzer.costPerEfficiency(salaries, stats, players);
 
         // Сохраняем в Parquet с партиционированием по году
         String parquetPath = outputDir + "/cost_per_efficiency";
