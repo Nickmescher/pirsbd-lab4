@@ -5,6 +5,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.StructType;
 import org.example.impl.CsvNbaDataLoader;
+import org.example.impl.NbaDataCleanerImpl;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class NbaDataCleanerTest {
     private SparkSession spark;
+    private final NbaDataCleaner cleaner = new NbaDataCleanerImpl();
 
     @BeforeAll
     void startSpark() {
@@ -50,7 +52,7 @@ class NbaDataCleanerTest {
 
     @Test
     void keepsMissingOptionalPlayerFieldsAndHomonymsButRejectsMissingIds() {
-        Dataset<Row> cleaned = NbaDataCleaner.cleanPlayers(strings("index,_id,name,college,career_G,career_WS",
+        Dataset<Row> cleaned = cleaner.cleanPlayers(strings("index,_id,name,college,career_G,career_WS",
                 create("0", " first01 ", " Shared   Name* ", "College", "100", "-0.5"),
                 create("1", "first01", "Shared Name", "College", "100", "-0.5"),
                 create("2", "second01", "Shared Name", "College", "100", "0"),
@@ -69,7 +71,7 @@ class NbaDataCleanerTest {
 
     @Test
     void rejectsInvalidRequiredSalaryFieldsAndKeepsMissingMetadataWithoutSummingTeams() {
-        Dataset<Row> cleaned = NbaDataCleaner.cleanSalaries(strings(
+        Dataset<Row> cleaned = cleaner.cleanSalaries(strings(
                 "index,player_id,salary,season_start,season_end,league,team,season",
                 create("0", "alice01", "1000", "2014", "2015", " nba ", " A ", "2014-15"),
                 create("1", "alice01", "1000", "2014", "2015", "NBA", "A", "2014-15"),
@@ -93,7 +95,7 @@ class NbaDataCleanerTest {
 
     @Test
     void dropsMissingEfficiencyFieldsButKeepsMissingOptionalStatsAndRealZeros() {
-        Dataset<Row> cleaned = NbaDataCleaner.cleanStats(strings(
+        Dataset<Row> cleaned = cleaner.cleanStats(strings(
                 "_c0,Year,Player,Pos,Age,Tm,G,PTS,TRB,AST,WS,blank2",
                 create("0", "2015", " Alice* ", "PG", "25", "TOT", "20", "0", "0", "0", "-0.5", ""),
                 create("1", "2015", "Alice", "PG", "25", "TOT", "20", "0", "0", "0", "-0.5", ""),
@@ -135,7 +137,7 @@ class NbaDataCleanerTest {
                 + "1,NBA,alice01,0,2014-15,2015,2014,Team A\n");
         Files.writeString(temp.resolve("stats.csv"), ",Year,Player,Pos,Age,Tm,G,PTS,TRB,AST\n"
                 + "0,2015,Alice*,PG,25,TOT,20,0,30,0\n1,2015,Alice,PG,25,AAA,1,,0,0\n");
-        NbaDataLoader loader = new CsvNbaDataLoader();
+        NbaDataLoader loader = new CsvNbaDataLoader(new org.example.impl.NbaDataCleanerImpl());
         assertEquals(1, loader.loadPlayers(spark, temp.resolve("players.csv").toString()).count());
         assertEquals(1, loader.loadSalaries(spark, temp.resolve("salaries.csv").toString()).count());
         Dataset<Row> stats = loader.loadSeasonStats(spark, temp.resolve("stats.csv").toString());

@@ -28,29 +28,35 @@ src/main/java/org/example/
 ├── NbaApp.java              — точка входа
 ├── NbaDataLoader.java       — интерфейс загрузки CSV
 ├── NbaAnalyzer.java         — интерфейс аналитики
+├── NbaDataCleaner.java      — интерфейс очистки данных
 ├── NbaResultWriter.java     — интерфейс записи результатов
 └── impl/
-    ├── CsvNbaDataLoader.java    — чтение CSV через Spark
-    ├── NbaAnalyzerImpl.java     — расчёт efficiency и CPE
+    ├── CsvNbaDataLoader.java    — чтение CSV через Spark, применяет NbaDataCleaner
+    ├── NbaDataCleanerImpl.java  — фильтрация невалидных строк, нормализация типов
+    ├── NbaAnalyzerImpl.java     — расчёт efficiency и CPE, дедупликация тёзок
     └── CsvNbaResultWriter.java  — запись CSV
 ```
 
 ## Логика расчёта
 
-### Шаг 1 — обогащение зарплат именем игрока
+### Шаг 1 — очистка данных (`NbaDataCleanerImpl`)
 
-`players._id = salaries.player_id` — salaries хранит числовой ID, имя берём из справочника players. Также извлекаем год рождения из `birthDate` для последующей дедупликации.
+Перед анализом каждый датасет очищается:
+- **players**: отбрасываются строки без `_id`, нормализуются имена (убираются `*` и лишние пробелы)
+- **salaries**: фильтруются нулевые/отрицательные зарплаты, строки без `player_id` и `season_end`, только лига NBA
+- **stats**: фильтруются строки с null/отрицательными PTS/TRB/AST, дедупликация по `(Year, Player, Tm)`
 
-### Шаг 2 — джойн зарплат со статистикой
+### Шаг 2 — сопоставление игроков по имени и дате рождения
 
-Три условия:
-1. `year` совпадает
-2. `player_name = Player` (имя)
-3. `birth_year BETWEEN (year - age) AND (year - age + 1)` — защита от тёзок
+В датасете есть тёзки (например, Charles Jones — 3 разных игрока). Простого джойна по имени недостаточно.
 
-Третье условие необходимо, потому что в датасете есть игроки с одинаковыми именами (например, Charles Jones встречается 3 раза). Год рождения из `birthDate` + возраст из Stats однозначно идентифицируют конкретного человека. Диапазон ±1 год учитывает то, что возраст фиксируется на 1 мая сезона: игрок с ДР после 1 мая имеет `age` на 1 больше.
+Решение: для каждой пары `(player, year, age)` из Stats вычисляется опорная дата `1 мая (year - age)`. Затем из players выбирается кандидат с `birthDate`, ближайшей к этой дате. Window-функция `row_number()` ранжирует кандидатов по `abs(datediff(birth_date, reference_birth_date))`, берётся rank = 1.
 
-### Шаг 3 — топ-N по годам
+### Шаг 3 — джойн зарплат со статистикой
+
+После сопоставления Stats → `player_id` джойн со stats идёт по `(player_id, year)`. Зарплаты привязаны к `season_end`, stats — к `Year`, они совпадают.
+
+### Шаг 4 — топ-N по годам
 
 Window-функция `rank()` с партиционированием по `year` и сортировкой по `cost_per_efficiency` по возрастанию.
 
