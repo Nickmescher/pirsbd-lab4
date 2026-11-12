@@ -1,5 +1,11 @@
 target/
 output/
-data/
+data/*
+!data/cleaned/
+data/cleaned/*
+!data/cleaned/players.csv
+!data/cleaned/salaries_1985to2018.csv
+!data/cleaned/Seasons_Stats.csv
 .idea/
 *.class
+dependency-reduced-pom.xml
