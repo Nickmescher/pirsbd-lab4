@@ -11,27 +11,25 @@ import static org.apache.spark.sql.functions.*;
 public class NbaAnalyzerImpl implements NbaAnalyzer {
 
     /**
-     * Считает efficiency = PTS + TRB + AST и cost_per_efficiency = salary / efficiency.
-     * Salaries содержит player_id, season_end, salary и team.
-     * Stats содержит Year, Player, Age, Pos, PTS, TRB, AST; players — _id, name, birthDate.
+     * Считает годовую efficiency = PTS + TRB + AST из строк TOT и cost_per_efficiency = salary / efficiency.
+     * salary — сумма зарплат за сезон, делённая на число различных Tm в stats, исключая TOT.
+     * Salaries содержит player_id, season_end и salary.
+     * Stats содержит Year, Player, Age, Tm, PTS, TRB, AST; players — _id, name, birthDate.
      */
     @Override
     public Dataset<Row> costPerEfficiency(Dataset<Row> salaries, Dataset<Row> stats, Dataset<Row> players) {
         Dataset<Row> cleanStats = stats
-                .withColumn("PTS", col("PTS"))
-                .withColumn("TRB", col("TRB"))
+                .withColumn("PTS", col("PTS").cast("double"))
+                .withColumn("TRB", col("TRB").cast("double"))
                 .withColumn("AST", col("AST").cast("double"))
-                .withColumn("efficiency", col("PTS").plus(col("TRB")).plus(col("AST")))
-                .filter(col("efficiency").gt(0))
                 .select(
                         col("Year").cast("int").as("year"),
                         col("Player").as("player"),
                         col("Age").cast("int").as("age"),
-                        col("Pos").as("pos"),
+                        col("Tm").as("stats_team"),
                         col("PTS"),
                         col("TRB"),
-                        col("AST"),
-                        col("efficiency")
+                        col("AST")
                 );
 
         Dataset<Row> cleanPlayers = players.select(
@@ -58,26 +56,47 @@ public class NbaAnalyzerImpl implements NbaAnalyzer {
 
         Dataset<Row> mappedStats = cleanStats.join(playerMapping, new String[]{"year", "player", "age"}, "inner");
 
+        // Count actual teams before selecting TOT rows for the season's performance totals.
+        Dataset<Row> statsTeamCounts = mappedStats
+                .groupBy("player_id", "year")
+                .agg(countDistinct(when(col("stats_team").notEqual("TOT"), col("stats_team"))).as("team_count"));
+
+        Dataset<Row> yearlyStats = mappedStats
+                .filter(col("stats_team").equalTo("TOT"))
+                .select(
+                        col("player_id"),
+                        col("year"),
+                        col("player").as("player_name"),
+                        col("PTS"),
+                        col("TRB"),
+                        col("AST")
+                )
+                .withColumn("efficiency", col("PTS").plus(col("TRB")).plus(col("AST")))
+                .filter(col("efficiency").gt(0));
+
         Dataset<Row> cleanSalaries = salaries
                 .withColumn("salary", col("salary").cast("double"))
                 .filter(col("salary").isNotNull().and(col("player_id").isNotNull()))
                 .select(
                         col("player_id"),
                         col("season_end").cast("int").as("year"),
-                        col("salary"),
-                        col("team")
+                        col("salary")
                 );
 
-        return cleanSalaries
-                .join(mappedStats, new String[]{"player_id", "year"}, "inner")
-                .withColumn("cost_per_efficiency", col("salary").divide(col("efficiency")))
+        Dataset<Row> yearlySalaries = cleanSalaries
+                .groupBy("player_id", "year")
+                .agg(sum(col("salary")).as("total_salary"));
+
+        return yearlySalaries
+                .join(yearlyStats, new String[]{"player_id", "year"}, "inner")
+                .join(statsTeamCounts, new String[]{"player_id", "year"}, "inner")
+                .filter(col("team_count").gt(0))
+                .withColumn("cost_per_efficiency",
+                        col("total_salary").divide(col("team_count")).divide(col("efficiency")))
                 .select(
                         col("year"),
                         col("player_id"),
-                        col("player").as("player_name"),
-                        col("pos"),
-                        col("team"),
-                        col("salary"),
+                        col("player_name"),
                         col("PTS"),
                         col("TRB"),
                         col("AST"),
